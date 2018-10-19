@@ -41,6 +41,7 @@ MODULE Base_cl
 
   USE utilities
   USE parameters
+  USE cstrings
   IMPLICIT NONE
   PRIVATE :: calendarDateToJulianDate
   PRIVATE :: coordinatedUniversalTime
@@ -620,6 +621,27 @@ CONTAINS
 
   END FUNCTION rotationMatrix
 
+  FUNCTION resolveDirectory(subdir, envvar) RESULT(s2)
+    CHARACTER(*), INTENT(IN) :: subdir, envvar
+    CHARACTER(FNAME_LEN) :: s2
+
+    ! If overriden by an environmental variable, prefer that
+    CALL getenv(envvar, s2)
+    IF (LEN_TRIM(s2) /= 0) THEN
+       RETURN
+    END IF
+
+    ! If PREFIX has not been set, default to current directory
+    ! for every subdir (backwards compatibility)
+    IF (CSTR_LEN(PREFIX) == 0) THEN
+       s2 = "."
+       RETURN
+    END IF
+
+    ! Otherwise, return <PREFIX>/<subdir>
+    s2 = FROM_CSTR(PREFIX) // "/" // subdir
+
+  END FUNCTION resolveDirectory
 
   SUBROUTINE setAccessToDataFiles()
 
