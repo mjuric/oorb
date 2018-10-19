@@ -41,6 +41,7 @@ MODULE Base_cl
 
   USE utilities
   USE parameters
+  USE cstrings
   IMPLICIT NONE
   PRIVATE :: calendarDateToJulianDate
   PRIVATE :: coordinatedUniversalTime
@@ -624,13 +625,13 @@ CONTAINS
 
     ! If PREFIX has not been set, default to current directory
     ! for every subdir (backwards compatibility)
-    IF (LEN_TRIM(PREFIX) == 0) THEN
+    IF (CSTR_LEN(PREFIX) == 0) THEN
        s2 = "."
        RETURN
     END IF
 
     ! Otherwise, return <PREFIX>/<subdir>
-    s2 = TRIM(PREFIX) // "/" // subdir
+    s2 = FROM_CSTR(PREFIX) // "/" // subdir
 
   END FUNCTION resolveDirectory
 
