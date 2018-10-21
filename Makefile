@@ -48,6 +48,7 @@ include make.config
 include Makefile.include
 
 PREFIX ?= /opt/oorb
+SP_DIR ?= $(PREFIX)/python
 
 .PHONY: all
 all:
@@ -81,7 +82,7 @@ install:
 	install -m644 lib/liboorb.a         $(PREFIX)/lib
 	install       lib/liboorb.$(LIBEXT) $(PREFIX)/lib
 
-	install       python/$(shell cat python/pyoorb.name)      $(PREFIX)/python
+	install       python/$(shell cat python/pyoorb.name)      "$(SP_DIR)/"
 
 	install -m644 main/oorb.conf $(PREFIX)/etc
 	cp -a $(shell find data -maxdepth 1 -type f) $(PREFIX)/data
