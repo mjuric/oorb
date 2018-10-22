@@ -85,7 +85,6 @@ install:
 	install       python/$(shell cat python/pyoorb.name)      "$(SP_DIR)/"
 
 	install -m644 main/oorb.conf $(PREFIX)/etc
-	cp -a $(shell find data -maxdepth 1 -type f) $(PREFIX)/data
 
 .PHONY: test
 test: all
