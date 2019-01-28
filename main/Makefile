@@ -29,6 +29,9 @@
 include ../make.config
 include ../Makefile.include
 
+# (Re)Generate version.h, as needed
+_ := $(shell ./version_h_gen.sh $(VERSION))
+
 IOMOD = io
 
 all: $(ORBITBIN)
@@ -39,6 +42,8 @@ $(ORBITBIN) : classes $(IOMOD).o $(ORBITSRC)
 	$(FC_INC)../$(CLASSPATH) $(FC_INC)../$(MODULEPATH) \
 	$(IOMOD).o ../$(CLASSPATH)/*.o \
 	../$(MODULEPATH)/*.o
+
+oorb.f90: version.h
 
 tico : classes tico.f90 
 	$(FC) $(FCOPTIONS) tico.f90 -o tico \
@@ -110,4 +115,6 @@ modules:
 # Remove program binaries and trash:
 clean:
 	rm -f *~ *.o *.mod $(ORBITBIN) \
-	tico oorb4mops oorb4research oorb4neossat
+	tico oorb4mops oorb4research oorb4neossat \
+	version.h
+

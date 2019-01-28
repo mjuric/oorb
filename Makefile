@@ -44,7 +44,9 @@ all:
 
 # Make tar-ball:
 tar: all_clean
-	cd .. ; tar cvf $(PROJNAME)_v$(VERSION).tar $(PROJNAME) ; gzip $(PROJNAME)_v$(VERSION).tar
+	./compute-version.sh > VERSION
+	cd .. && tar czvf $(PROJNAME)_v$(VERSION).tar.gz --exclude $(PROJNAME)/.git $(PROJNAME)
+	rm -f VERSION
 
 all_clean: clean
 	cd $(DOCPATH)    ; $(MAKE) clean

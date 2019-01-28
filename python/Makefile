@@ -25,6 +25,9 @@
 include ../make.config
 include ../Makefile.include
 
+# (Re)Generate version.pyf, as needed
+_ := $(shell ./version_pyf_gen.sh $(VERSION))
+
 all: liboorb.$(LIBEXT)
 
 liboorb.o: liboorb.f90
@@ -45,11 +48,11 @@ liboorb.$(LIBEXT): modules classes main liboorb.o
 	../$(CLASSPATH)/*.o \
 	../$(MODULEPATH)/*.o
 
-pyoorb: liboorb
+pyoorb: liboorb version.pyf
 	[[ ! -z "$(LDFLAGS)" ]] && echo "$$LDFLAGS" | grep -E -v -q -- "(-bundle|-shared)" && { \
 	  [[ `uname` == "Darwin" ]] && LDFLAGS="$$LDFLAGS -bundle" || LDFLAGS="$$LDFLAGS -shared"; \
 	}; \
-	f2py -m pyoorb pyoorb.f90 --build-dir ./build -c --noarch -loorb -L../lib \
+	f2py -m pyoorb pyoorb.f90 version.pyf --build-dir ./build -c --noarch -loorb -L../lib \
 	--f90exec=$(FC) --f90flags="$(FC_INC)../$(CLASSPATH) $(FC_INC)../$(MODULEPATH)" 
 
 pyoorb.o: liboorb
@@ -73,5 +76,5 @@ modules:
 clean:
 	rm -fr build *~ *.mod *.o \
 	*.so *.dylib *.$(LIBEXT) *.pyc *.pyc.$(OS) \
-	test
+	test version.pyf
 
