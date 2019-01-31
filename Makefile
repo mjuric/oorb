@@ -66,9 +66,9 @@ install:
 	cp -a python/pyoorb*.so $(PREFIX)/python/
 
 .PHONY: test
-test:
+test: all
 	@hash pytest 2>/dev/null || { echo "You need to have pytest installed to run the tests." && exit -1; }
-	pytest -q tests
+	PYTHONPATH="./python:$$PYTHONPATH" DYLD_LIBRARY_PATH="$$PWD/python:$$DYLD_LIBRARY_PATH" LD_LIBRARY_PATH="$$PWD/python:$$LD_LIBRARY_PATH" pytest tests
 
 # Remove library and modules:
 clean:
