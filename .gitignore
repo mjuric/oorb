@@ -25,3 +25,7 @@ data/de430.dat
 lib/liboorb.*
 python/liboorb.*
 VERSION
+__pycache__
+.pytest_cache
+python/version.pyf
+main/version.h

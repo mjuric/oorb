@@ -65,6 +65,11 @@ install:
 	cp -a data/* $(PREFIX)/data/ && rm -rf "$(PREFIX)/data/JPL_ephemeris"
 	cp -a python/pyoorb*.so $(PREFIX)/python/
 
+.PHONY: test
+test:
+	@hash pytest 2>/dev/null || { echo "You need to have pytest installed to run the tests." && exit -1; }
+	pytest -q tests
+
 # Remove library and modules:
 clean:
 	rm -f *~ *.mod *.o
