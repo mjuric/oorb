@@ -42,6 +42,7 @@ $(ORBITBIN) : classes $(IOMOD).o $(ORBITSRC)
 	$(FC_INC)../$(CLASSPATH) $(FC_INC)../$(MODULEPATH) \
 	$(IOMOD).o ../$(CLASSPATH)/*.o \
 	../$(MODULEPATH)/*.o
+	./fix-rpath.sh
 
 oorb.f90: version.h
 
