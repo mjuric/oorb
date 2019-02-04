@@ -53,6 +53,9 @@ PREFIX ?= /opt/oorb
 all:
 	@ $(MAKE) -C build $@
 
+ephem:
+	@ $(MAKE) -C data/JPL_ephemeris
+
 # Forward everything we don't recognize to the makefile in build/
 %:
 	$(MAKE) -C build $@
@@ -80,7 +83,10 @@ install:
 .PHONY: test
 test: all
 	@hash pytest 2>/dev/null || { echo "You need to have pytest installed to run the tests." && exit -1; }
-	PYTHONPATH="lib:$$PYTHONPATH" DYLD_LIBRARY_PATH="lib:$$DYLD_LIBRARY_PATH" LD_LIBRARY_PATH="lib:$$LD_LIBRARY_PATH" pytest tests
-	@ ##PYTHONPATH=".python:$$PYTHONPATH" DYLD_LIBRARY_PATH="lib:$$DYLD_LIBRARY_PATH" LD_LIBRARY_PATH="lib:$$LD_LIBRARY_PATH" pytest tests
-	@ # integration test
-	@ ## OORB_DATA=data DYLD_LIBRARY_PATH="lib" python python/test.py
+	PYTHONPATH="lib:$$PYTHONPATH" $(LD_LIB_PATH_VAR)="lib:$$$(LD_LIB_PATH_VAR)" pytest tests
+# integration tests, will run only if JPL ephemeris data has been downloaded
+ifneq ("$(wildcard data/de430.dat)","")
+	PYTHONPATH="lib:$$PYTHONPATH" $(LD_LIB_PATH_VAR)="lib:$$$(LD_LIB_PATH_VAR)" OORB_DATA=data python python/test.py
+else
+	@ echo WARNING: Not running pyoorb integration tests as data/de430.dat is not present. Run "'make ephem'" to build it first.
+endif

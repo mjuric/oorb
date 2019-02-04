@@ -100,7 +100,7 @@ pyoorb: ../lib/$(PYOORB)
 	  [[ `uname` == "Darwin" ]] && LDFLAGS="$$LDFLAGS -bundle" || LDFLAGS="$$LDFLAGS -shared"; \
 	}; \
 	f2py --quiet -m pyoorb pyoorb.o pyoorb.pyf --build-dir ./_pyoorb_build -c --noarch -loorb -L../lib \
-	--f90exec=$(FC) --f90flags="$(FC_INC)../build" && \
+	$(F2PY_FCOMPILER) --f90exec=$(FC) --f90flags="$(FC_INC)../build" && \
 	mv $(PYOORB) ../python
 	@ echo
 	@ echo "Built the $(PYOORB) module."
