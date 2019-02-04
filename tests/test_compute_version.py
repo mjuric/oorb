@@ -4,7 +4,7 @@
 
 from __future__ import print_function
 from subprocess import check_output
-import os, tempfile, shutil
+import os, os.path, tempfile, shutil
 from pkg_resources import parse_version
 
 def shell(cmd):
@@ -14,7 +14,7 @@ def check_version(verexp):
 	#
 	# Hand-parse the versions
 	#
-	verall = check_output("./compute-version.sh", shell=True).decode('utf-8').rstrip()
+	verall = check_output("./build-tools/compute-version.sh", shell=True).decode('utf-8').rstrip()
 
 	# SHAs at the end will be changing (they depend on dates, author, etc..). Split them off
 	(verexp, shaexp) = verexp.split('+') if '+' in verexp else (verexp, None)
@@ -48,7 +48,9 @@ def test_compute_version():
 		# Create a mock git repository in a temporary dir,
 		# copy the tested script there.
 		gitwd = tempfile.mkdtemp()
-		shutil.copy2('compute-version.sh', gitwd)
+		btdir = os.path.join(gitwd, 'build-tools')
+		os.mkdir(btdir)
+		shutil.copy2('build-tools/compute-version.sh', btdir)
 		os.chdir(gitwd)
 
 		#

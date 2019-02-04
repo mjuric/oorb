@@ -76,8 +76,11 @@ LIBOBJECTS=$(notdir ${LIBSOURCES:.f90=.o})
 
 ../lib/liboorb.a: $(LIBOBJECTS)
 	mkdir -p ../lib
+ifeq ($(shell uname),Darwin)
 	libtool -static -no_warning_for_no_symbols $(LIBOBJECTS) -o $@
-
+else
+	ar rcs $@ $(LIBOBJECTS)
+endif
 
 #
 # Build pyoorb

@@ -16,7 +16,7 @@ set -e
 #
 # This is relevant only on macOS
 #
-[[ $(uname) == Darwin ]] || exit
+[[ $(uname) == Darwin ]] || exit 0
 
 #
 # See if there is the tell-tale signs of conda's compiler

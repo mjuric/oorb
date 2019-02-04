@@ -12,13 +12,13 @@ def shell(cmd):
 	return check_output(cmd, shell=True).decode('utf-8')
 
 def test_version_pyoorb():
-	expectver = check_output("./compute-version.sh", shell=True).decode('utf-8').rstrip()
+	expectver = check_output("./build-tools/compute-version.sh", shell=True).decode('utf-8').rstrip()
 
 	import pyoorb
 	assert pyoorb.__version__ == expectver
 
 def test_version_oorb():
-	expectver = 'v' + check_output("./compute-version.sh", shell=True).decode('utf-8').rstrip()
+	expectver = 'v' + check_output("./build-tools/compute-version.sh", shell=True).decode('utf-8').rstrip()
 	ver = check_output('./main/oorb  --version | grep "^OpenOrb v" | cut -d\  -f 2', shell=True).decode('utf-8').rstrip()
 
 	assert ver == expectver
