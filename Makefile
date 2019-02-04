@@ -1,61 +1,73 @@
-#====================================================================#
-#                                                                    #
-# Copyright 2002,2003,2004,2005,2006,2007,2008,2009                  #
-# Mikael Granvik, Jenni Virtanen, Karri Muinonen, Teemu Laakso,      #
-# Dagmara Oszkiewicz                                                 #
-#                                                                    #
-# This file is part of OpenOrb.                                      #
-#                                                                    #
-# OpenOrb is free software: you can redistribute it and/or modify it #
-# under the terms of the GNU General Public License as published by  #
-# the Free Software Foundation, either version 3 of the License, or  #
-# (at your option) any later version.                                #
-#                                                                    #
-# OpenOrb is distributed in the hope that it will be useful, but     #
-# WITHOUT ANY WARRANTY; without even the implied warranty of         #
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU  #
-# General Public License for more details.                           #
-#                                                                    #
-# You should have received a copy of the GNU General Public License  #
-# along with OpenOrb. If not, see <http://www.gnu.org/licenses/>.    #
-#                                                                    #
-#====================================================================#
+############################################################################
 #
-# This is a makefile for the classes, modules, executables,
-# and documentation in the OpenOrb-project.
+# OpenOrb Build System
 #
-# Author:  MG
-# Version: 2009-11-09
+# This file its companion in build/Makefile define build targets for all
+# command line executables (see PROGRAMS in ../make.config), liboorb
+# libraries, and the pyoorb Python module.  Default rule (named all) builds
+# all of them.
+#
+# Example usage (with -j4 to take advantage of multi-threaded builds):
+#
+#	$ make -j4
+#
+# or (for example) to just build oorb, run:
+#
+#	$ make -j4 oorb
+#
+# To install the code, run:
+#
+#	$ make install
+#
+# FOR DEVELOPERS:
+#
+# * The build is executed in the build/ subdirectory.  All intermediate
+#   files end up there (.o, .mod, etc.)
+#
+# * To add new programs, add the .f90 file into main/ and list it in
+#   PROGRAMS variable in make.config. Then rerun `make depends`.
+#
+# * To add new files, add them to modules/ or classes/ and list the file
+#   name in the apropriate variable in make.config.  Then rerun `make
+#   depends`
+#
+# * If there's a change in depdendency of any FORTRAN file (e.g., you've
+#   USEd another module), run:
+#
+#       $ make depends
+#
+#   to rebuild the dependencies file (build/make.depends).  You must be
+#   using gfortran for this rebuild to work.
+#
+# Author: mjuric@astro.washington.edu (http://github.com/mjuric)
+#
+#############################################################################
+
 
 include make.config
 include Makefile.include
 
 PREFIX ?= /opt/oorb
 
-# Write back-up:
-backup:
-	$(SHELL) -c "if test -d ../backup_$(PROJNAME); then true; else mkdir ../backup_$(PROJNAME); fi"
-	cp -a * ../backup_$(PROJNAME)
-
-# Build binary and Python module
+.PHONY: all
 all:
-	cd $(MAINPATH)   && $(MAKE) oorb
-	cd $(PYTHONPATH) && $(MAKE) pyoorb
+	@ $(MAKE) -C build $@
+
+# Forward everything we don't recognize to the makefile in build/
+%:
+	$(MAKE) -C build $@
+
+.PHONY: clean
+clean:
+	$(MAKE) -C build clean
+	$(MAKE) -C doc clean
 
 # Make tar-ball:
-tar: all_clean
-	./compute-version.sh > VERSION
+.PHONY: tar
+tar: clean
 	cd .. && tar czvf $(PROJNAME)_v$(VERSION).tar.gz --exclude $(PROJNAME)/.git $(PROJNAME)
-	rm -f VERSION
 
-all_clean: clean
-	cd $(DOCPATH)    ; $(MAKE) clean
-	cd $(CLASSPATH)  ; $(MAKE) clean
-	cd $(MODULEPATH) ; $(MAKE) clean
-	cd $(MAINPATH)   ; $(MAKE) clean
-	cd $(PYTHONPATH) ; $(MAKE) clean
-	cd $(LIBPATH)    ; $(MAKE) clean
-
+.PHONY: install
 install:
 	@echo "Installing into $(PREFIX)"
 	mkdir -p $(PREFIX)/bin $(PREFIX)/etc $(PREFIX)/lib $(PREFIX)/data $(PREFIX)/python
@@ -68,9 +80,7 @@ install:
 .PHONY: test
 test: all
 	@hash pytest 2>/dev/null || { echo "You need to have pytest installed to run the tests." && exit -1; }
-	PYTHONPATH="./python:$$PYTHONPATH" DYLD_LIBRARY_PATH="$$PWD/python:$$DYLD_LIBRARY_PATH" LD_LIBRARY_PATH="$$PWD/python:$$LD_LIBRARY_PATH" pytest tests
-
-# Remove library and modules:
-clean:
-	rm -f *~ *.mod *.o
-
+	PYTHONPATH="lib:$$PYTHONPATH" DYLD_LIBRARY_PATH="lib:$$DYLD_LIBRARY_PATH" LD_LIBRARY_PATH="lib:$$LD_LIBRARY_PATH" pytest tests
+	@ ##PYTHONPATH=".python:$$PYTHONPATH" DYLD_LIBRARY_PATH="lib:$$DYLD_LIBRARY_PATH" LD_LIBRARY_PATH="lib:$$LD_LIBRARY_PATH" pytest tests
+	@ # integration test
+	@ ## OORB_DATA=data DYLD_LIBRARY_PATH="lib" python python/test.py

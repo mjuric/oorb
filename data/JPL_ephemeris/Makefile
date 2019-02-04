@@ -86,7 +86,7 @@ PROJNAME = JPL_Ephemeris
 # Compile converter, build input file and convert ascii ephemeris files to a single binary file:
 eph : $(CONVERTER) $(EPH_INPUT)
 	rm -f $(EPH_BIN)
-	nice ./$(CONVERTER) --eph-type=$(EPH_TYPE) < $(EPH_INPUT)
+	DYLD_LIBRARY_PATH="../lib:$$CONDA_PREFIX/lib" ./$(CONVERTER) --eph-type=$(EPH_TYPE) < $(EPH_INPUT)
 	cp $(EPH_BIN) ../
 
 test : $(TESTER)

@@ -1,0 +1,154 @@
+############################################################################
+#
+# OpenOrb Makefile
+#
+# See the main `Makefile` for the documentation.
+#
+# Author: mjuric@astro.washington.edu (http://github.com/mjuric)
+#
+#############################################################################
+
+include ../make.config
+include ../Makefile.include
+
+#
+# Default rule builds all command-line executables and the pyoorb Python
+# module.
+#
+.PHONY: all
+all: $(PROGRAMS) liboorb pyoorb
+
+#
+# Clean all temp files
+#
+.PHONY: clean
+clean:
+	rm -f *.o *.mod *.tmp
+	rm -f version.h
+	rm -f $(addprefix ../main/, $(PROGRAMS)) 
+	rm -f ../lib/liboorb.{$(LIBEXT),a}
+	rm -rf *.pyf ../python/$(PYOORB) _pyoorb_build
+	rm -rf ../bin ../lib
+
+#
+# Convenience so we can run 'make oorb' (instead of 'make ../bin/oorb')
+#
+.PHONY: $(PROGRAMS)
+$(PROGRAMS): %: ../bin/%
+
+#
+# Build programs
+#
+# These rules leave binaries both in bin/ and main/, the latter for
+# backwards compatibility.
+#
+# See https://stackoverflow.com/a/34983297 on why static pattern
+# rules are needed here (otherwise, deleting main/oorb and running
+# make oorb would not rebuild it, as it's considered an intermediate
+# file by make).
+
+$(addprefix ../bin/, $(PROGRAMS)): ../bin/%: ../main/%
+	mkdir -p ../bin
+	cp -a $< $@
+
+$(addprefix ../main/, $(PROGRAMS)): ../main/%: %.o ../lib/liboorb.a
+	$(FC) $(FCOPTIONS) $^ -o $@.tmp
+	fix-rpath.sh $@.tmp
+	mv $@.tmp $@
+
+#
+# Build version include file. This is included by oorb.f90 to
+# compile-in the current version
+#
+version.h: ../VERSION
+	generate-version-h.sh $$(cat $<) > $@
+
+#
+# Build liboorb, static and dynamic (in lib/ directory)
+#
+.PHONY: liboorb
+liboorb: ../lib/liboorb.$(LIBEXT) ../lib/liboorb.a
+
+LIBOBJECTS=$(notdir ${LIBSOURCES:.f90=.o})
+../lib/liboorb.$(LIBEXT): $(LIBOBJECTS)
+	mkdir -p ../lib
+	$(FC) $(FCOPTIONS) $(FC_SHARED) $(LIBOBJECTS) -o $@
+
+../lib/liboorb.a: $(LIBOBJECTS)
+	mkdir -p ../lib
+	libtool -static -no_warning_for_no_symbols $(LIBOBJECTS) -o $@
+
+
+#
+# Build pyoorb
+#
+# These rules drop the compiled module both in python/ and lib/, the latter
+# for backwards compatibility.
+#
+.PHONY: pyoorb
+pyoorb: ../lib/$(PYOORB)
+
+../lib/$(PYOORB): ../python/$(PYOORB)
+	mkdir -p ../lib
+	cp -a $< $@
+
+../python/$(PYOORB): ../lib/liboorb.$(LIBEXT) pyoorb.pyf pyoorb.o pyoorb.mod
+	@ [[ ! -z "$(LDFLAGS)" ]] && echo "$$LDFLAGS" | grep -E -v -q -- "(-bundle|-shared)" && { \
+	  [[ `uname` == "Darwin" ]] && LDFLAGS="$$LDFLAGS -bundle" || LDFLAGS="$$LDFLAGS -shared"; \
+	}; \
+	f2py --quiet -m pyoorb pyoorb.o pyoorb.pyf --build-dir ./_pyoorb_build -c --noarch -loorb -L../lib \
+	--f90exec=$(FC) --f90flags="$(FC_INC)../build" && \
+	mv $(PYOORB) ../python
+	@ echo
+	@ echo "Built the $(PYOORB) module."
+
+pyoorb.pyf: ../VERSION ../python/pyoorb.f90
+	f2py --quiet -m pyoorb ../python/pyoorb.f90 --overwrite-signature -h pyoorb.pyf.tmp
+	@ echo
+	@ # generate __version__ string code
+	generate-version-pyf.sh $$(cat ../VERSION) > version.pyf
+	@ # splice the generated version information so pyoorb.__version__ works
+	sed '/    interface  ! in :pyoorb/ r version.pyf' pyoorb.pyf.tmp > pyoorb.pyf.tmp2
+	@ # make sure it worked
+	@ grep -q '__version__' pyoorb.pyf.tmp2 || { echo "Failed to splice pyoorb.__version__ information into pyoorb.pyf. Verify the sed stanza in the Makefile is not out of date."; exit -1; }
+	mv pyoorb.pyf.tmp2 pyoorb.pyf
+	rm -f pyoorb.pyf.tmp version.pyf
+
+
+#
+# Rules to generate dependency information using gfortran's preprocessor.
+#
+# These are not intented to be run by the users, just the developers
+# whenever the dependency information changes (i.e., if a source file is
+# added, or module USE information is changed).
+#
+# Note: they're only known to work with gfortran; the generated file
+# will work with other compilers, assuming they follow gfortran
+# conventions on naming of .mod files.
+#
+.PHONY: depends
+depends: clean version.h
+	make-fortran-deps.sh $(ALLSOURCES) > make.depends
+
+#
+# Recipes to build individual files, which are called by the rules generated
+# in make.depends
+#
+# We can't use pattern rules here because something like '%.mod: %.f90' will
+# fail when the module name differs from .f90 file name.
+#
+# The complex form of MODBUILDCMD is to correctly handle parallel builds
+# when more than one .mod file is generated from the same .f90 file, e.g.:
+#
+#    foo.mod bar.mod: baz.f90
+#            $(MODBUILDCMD)
+#
+# make will execute $(MODBUILDCMD) twice and in parallel (once for foo.mod,
+# once for bar.mod), but each of the invocations will try to write _both_
+# files (and thus we get issues with overwriting).  The stanza below avoids
+# this by running each build in a temporary directory, and then just copying
+# back the target .mod file.
+#
+OBJBUILDCMD=$(FC) -c $(FCOPTIONS) $(FC_INC). $<
+MODBUILDCMD=@test -f $@ || ( TMPDIR=$$(mktemp -d) && cd "$$TMPDIR" && $(FC) -c $(FCOPTIONS) $(FC_INC)$(PWD) $(abspath $<) && mv $@ $(PWD) && rm -r "$$TMPDIR"  )
+-include make.depends

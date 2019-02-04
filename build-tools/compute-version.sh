@@ -1,6 +1,13 @@
 #!/bin/bash
 #
+# Create PEP-440 compliant version identifiers using information stored in
+# git.
+#
 # Uses the following logic:
+#
+# * If we're not in a git repository (or git is not installed), return the
+#   contents of the file named `VERSION`.  If VERSION does not exist, return
+#   "unknown".
 #
 # * If the current commit has an annotated tags, the version is simply the tag with
 #   the leading 'v' removed.
@@ -13,10 +20,19 @@
 #
 # * If there are no annotated tags in the past, the version is:
 #
-#    '0.0.0.post{commitcount}+{gitsha}'
+#    '1.0.2.post{commitcount}+{gitsha}'
+#
+#  where 1.0.2 is picked up from DEFAULT_VERSION variable.
+#
+# * If the working directory is dirty, add '.dirty' to the version.
+#
+# * If '-u' is given on the command line, update the file VERSION if the
+#   computed version differs from the one currently in the file.
 #
 # Inspired by https://github.com/pyfidelity/setuptools-git-version
-# Creates PEP-440 compliant versions
+#
+# Author: mjuric@astro.washington.edu (http://github.com/mjuric)
+#
 
 DEFAULT_VERSION=v1.0.2
 
@@ -67,9 +83,18 @@ compute_version() {
 	fi
 }
 
-# Change to directory of script
+# Assuming this script is in $ROOT/build-tools/ subdirectory;
+# Change the directory to $ROOT.
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-cd "$DIR"
+cd "$DIR/.."
 
 # Print out the version
-echo "$(compute_version)"
+VERSION="$(compute_version)"
+echo "$VERSION"
+
+# Save the version to a file, if requested (and if different from what's already in the file)
+if [[ $1 == "-u" ]]; then
+	if [[ ! -f VERSION || $VERSION != $(cat VERSION) ]]; then
+		echo "$VERSION" > VERSION
+	fi
+fi
