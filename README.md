@@ -49,13 +49,13 @@ OpenOrb comes with JPL's DE430 by default. Additional ephemerides
 can be installed using:
 
 ```bash
-conda install openorb-data-de405
+conda install -c defaults -c conda-forge openorb-data-de405
 ```
 
 for JPL's DE405 or
 
 ```bash
-conda install openorb-data-bc430
+conda install -c defaults -c conda-forge openorb-data-bc430
 ```
 
 for Baer & Chesley (2017).

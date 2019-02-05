@@ -2,10 +2,10 @@
 #
 # OpenOrb Build System
 #
-# This file its companion in build/Makefile define build targets for all
+# This file and its companion in build/Makefile define build targets for all
 # command line executables (see PROGRAMS in ../make.config), liboorb
-# libraries, and the pyoorb Python module.  Default rule (named all) builds
-# all of them.
+# libraries, and the pyoorb Python module.  Default rule (named `all`)
+# builds all of them.
 #
 # Example usage (with -j4 to take advantage of multi-threaded builds):
 #

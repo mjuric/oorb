@@ -9,8 +9,8 @@
 #   contents of the file named `VERSION`.  If VERSION does not exist, return
 #   "unknown".
 #
-# * If the current commit has an annotated tags, the version is simply the tag with
-#   the leading 'v' removed.
+# * If the current commit has an annotated tag attached to it, the version
+#   is simply the tag with the leading 'v' removed.
 #
 # * If the current commit is past an annotated tag, the version is constructed at:
 #
