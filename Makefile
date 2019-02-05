@@ -71,7 +71,7 @@ tar: clean
 	cd .. && tar czvf $(PROJNAME)_v$(VERSION).tar.gz --exclude $(PROJNAME)/.git $(PROJNAME)
 
 .PHONY: install
-install: all
+install:
 	install -d $(PREFIX)/{bin,etc,lib,data,python}
 
 	for P in $(PROGRAMS); do \
@@ -81,10 +81,10 @@ install: all
 	install -m644 lib/liboorb.a         $(PREFIX)/lib
 	install       lib/liboorb.$(LIBEXT) $(PREFIX)/lib
 
-	install       python/$(PYOORB)      $(PREFIX)/python
+	install       python/$(shell cat python/pyoorb.name)      $(PREFIX)/python
 
 	install -m644 main/oorb.conf $(PREFIX)/etc
-	cp -a $(shell find data -depth 1 -type f) $(PREFIX)/data
+	cp -a $(shell find data -maxdepth 1 -type f) $(PREFIX)/data
 
 .PHONY: test
 test: all

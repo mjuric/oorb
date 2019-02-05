@@ -27,7 +27,7 @@ clean:
 	rm -f version.h
 	rm -f $(addprefix ../main/, $(PROGRAMS)) 
 	rm -f ../lib/liboorb.{$(LIBEXT),a}
-	rm -rf *.pyf ../python/$(PYOORB) _pyoorb_build
+	rm -rf *.pyf ../python/$(PYOORB) ../python/pyoorb.name _pyoorb_build
 	rm -rf ../bin ../lib
 
 #
@@ -111,6 +111,9 @@ pyoorb: ../lib/$(PYOORB)
 	$(F2PY_FCOMPILER) --f90exec=$(FC) --f90flags="$(FC_INC)../build" && \
 	mv $(PYOORB) ../python
 	@ echo
+	@ # FIXME: this exists so `sudo make install` knows what to install. It's hacky this way
+	@ #        and should be made to be generated/updated like the VERSION file is.
+	echo $(PYOORB) > ../python/pyoorb.name
 	@ echo "Built the $(PYOORB) module."
 
 pyoorb.pyf: ../VERSION ../python/pyoorb.f90
