@@ -88,8 +88,8 @@ install:
 
 .PHONY: test
 test: all
-	@hash pytest 2>/dev/null || { echo "You need to have pytest installed to run the tests." && exit -1; }
-	PYTHONPATH="lib:$$PYTHONPATH" pytest tests
+	@hash py.test 2>/dev/null || { echo "You need to have pytest installed to run the tests." && exit -1; }
+	PYTHONPATH="lib:$$PYTHONPATH" py.test tests
 # integration tests, will run only if JPL ephemeris data has been downloaded
 ifneq ("$(wildcard data/de430.dat)","")
 	PYTHONPATH="lib:$$PYTHONPATH" OORB_DATA=data python python/test.py
