@@ -1,0 +1,39 @@
+#
+# Parallel build
+#
+jobs:
+#- template: azure-tpl-jobs.yml
+#  parameters:
+#    name: 'Linux_Conda'
+#    vmImage: 'Ubuntu 16.04'
+#- template: azure-tpl-jobs.yml
+#  parameters:
+#    name: 'MacOS_Conda'
+#    vmImage: 'macOS-10.13'
+- job: 'Linux_Ubuntu_16_04'
+  pool:
+    vmImage: 'Ubuntu 16.04'
+  steps:
+  - checkout: self
+    fetchDepth: 1
+  - script: |
+      sudo apt-get update
+      sudo rm -f /usr/bin/conda
+      # sudo apt-get install -y git gfortran build-essential python3-dev python3-numpy python3-pytest
+      sudo apt-get install -y git gfortran build-essential python-dev python-numpy python-pytest
+      git config --global user.email "you@example.com"
+      git config --global user.name "Your Name"
+
+      ./configure gfortran opt --prefix=/opt/test/openorb
+      make -j4
+      make ephem -j4
+      make test
+      sudo make install
+    displayName: 'Build'
+  - script: |
+      SRCDIR=$PWD
+      export PYTHONPATH="/opt/test/openorb/python:$PYTHONPATH"
+      cd /
+      python -c "import pyoorb; print('success.')"
+      python $SRCDIR/python/test.py
+    displayName: 'Test'
