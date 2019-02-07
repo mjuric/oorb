@@ -43,6 +43,9 @@ PREFIX=""
 PYTHON="python"
 F2PY="f2py"
 PYTEST="py.test"
+ADDLIBS=
+ADDOPTS=
+COVERAGE=
 while [[ $# -gt 0 ]]
 do
 	key="$1"
@@ -57,6 +60,13 @@ do
 			shift;
 			shift;
 		;;
+		
+		--coverage)
+			COVERAGE=on
+			ADDLIBS="$ADDLIBS -lgcov"
+			ADDOPTS="$ADDOPTS -coverage"
+			shift;
+		;;
 
 		*)
 		POSITIONAL+=("$1")
@@ -65,8 +75,12 @@ do
 	esac
 done
 set -- "${POSITIONAL[@]}" # restore positional parameters
-#echo "PYTHON=$PYTHON PREFIX=$PREFIX F2PY=$F2PY |||| $@"
-#exit
+
+# --coverage only works with gfortran; verify gfortran is being used
+if [[ ! -z $COVERAGE && $1 != gfortran ]]; then
+	echo "Error: --coverage option only works with the gfortran compiler".
+	exit -1
+fi
 
 # Make sure $PREFIX is an absolute path
 if [[ ! -z "$PREFIX" && $PREFIX != /* ]]; then
@@ -174,9 +188,9 @@ elif [[ $1 == gfortran ]] ; then
 
     echo 'FC = $(FC_GFORTRAN)' > $include_file
     if [[ $2 == opt ]] ; then
-	echo 'FCOPTIONS = $(FCOPTIONS_OPT_GFORTRAN)' >> $include_file
+	echo 'FCOPTIONS = $(FCOPTIONS_OPT_GFORTRAN)'"$ADDOPTS" >> $include_file
     else
-	echo 'FCOPTIONS = $(FCOPTIONS_DEB_GFORTRAN)' >> $include_file
+	echo 'FCOPTIONS = $(FCOPTIONS_DEB_GFORTRAN)'"$ADDOPTS" >> $include_file
     fi
     echo 'FC_INC = $(FC_INC_GFORTRAN)' >> $include_file
     echo 'FC_SHARED = $(FC_SHARED_GFORTRAN)' >> $include_file
@@ -208,3 +222,4 @@ fi
 echo "PYTHON=$PYTHON" >> "$include_file"
 echo "F2PY=$F2PY"     >> "$include_file"
 echo "PYTEST=$PYTEST" >> "$include_file"
+echo "ADDLIBS=$ADDLIBS" >> "$include_file"
