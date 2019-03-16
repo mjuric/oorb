@@ -58,12 +58,13 @@ MODULE pyoorb
 CONTAINS
 
   SUBROUTINE oorb_init(ephemeris_fname, error_verbosity, &
-       info_verbosity, error_code)
+       info_verbosity, in_simint, error_code)
 
     IMPLICIT NONE
     CHARACTER(len=*), INTENT(in), OPTIONAL :: ephemeris_fname
     INTEGER, INTENT(in), OPTIONAL :: error_verbosity
     INTEGER, INTENT(in), OPTIONAL :: info_verbosity
+    INTEGER, INTENT(in), OPTIONAL :: in_simint
     INTEGER, INTENT(out) :: error_code
 
     TYPE (Time) :: t
@@ -117,6 +118,14 @@ CONTAINS
        info_verb = info_verbosity
     ELSE
        info_verb = 1
+    END IF
+
+    ! the number of particles integrated simultenaously (pyoorb default: 10,000)
+    ! f2py bug, passes 0 for OPTIONALs (https://github.com/numpy/numpy/issues/4013)
+    IF (PRESENT(in_simint) .AND. in_simint > 0.0_8) THEN
+       simint = in_simint
+    ELSE
+       simint = 10000
     END IF
 
   END SUBROUTINE oorb_init
@@ -224,6 +233,7 @@ CONTAINS
        in_orbits,       &
        in_epoch,        &
        in_dynmodel,     &
+       in_integration_step,  &
        out_orbits,      &
        error_code)
 
@@ -248,6 +258,8 @@ CONTAINS
     REAL(8), DIMENSION(2), INTENT(in)                   :: in_epoch
     ! in_model: "2"=2-body dynamical model, "N"=n-body dynamical model
     CHARACTER(len=1), INTENT(in)                        :: in_dynmodel
+    ! integration_step: step size for the n-body integrator (default: 5 days)
+    REAL(8), INTENT(in), OPTIONAL :: in_integration_step
     ! out_orbits: output flattened orbits, 12 columns per target:
     ! (1) object id (integer value)
     ! (2-7) orbital elements:
@@ -281,8 +293,14 @@ CONTAINS
        dyn_model = "n-body"
     END IF
     integrator = "bulirsch-stoer"
-    integration_step = 5.0_8
     perturbers = .TRUE.
+
+    ! f2py bug, passes 0 for OPTIONALs (https://github.com/numpy/numpy/issues/4013)
+    IF (PRESENT(in_integration_step) .AND. in_integration_step > 0.0_8) THEN
+       integration_step = in_integration_step
+    ELSE
+       integration_step = 5.0_8
+    END IF
 
     ! Loop over orbits:
     DO i=1,SIZE(in_orbits,dim=1)
@@ -364,6 +382,244 @@ CONTAINS
     END DO
 
   END SUBROUTINE oorb_propagation
+
+
+
+  SUBROUTINE oorb_propagate_multiple(in_norb, &
+       in_orbits,            &
+       in_nepoch,            &
+       in_epoch,             &
+       in_dynmodel,          &
+       in_integration_step,  &
+       out_orbits,           &
+       error_code)
+
+    ! Input/Output variables.
+    ! in_norb: number of input orbits
+    INTEGER, INTENT(in)                                 :: in_norb
+    ! in_orbits: input flattened orbits, 12 columns per target:
+    ! (1) object id (integer value)
+    ! (2-7) orbital elements:
+    !   * (q, e, i, longnode, argper, perihelion epoch in mjd) for comet format
+    !   * (a, e, i, longnode, argper, mean anomaly) for keplerian format
+    !   * (x, y, z, dx, dy, dz) for cartesian format
+    ! (8) orbital elements type ('CART': 1, 'COM': 2, 'KEP': 3, 'DEL': 4, 'EQX': 5)
+    ! (9) epoch in mjd
+    ! (10) time scale type ('UTC': 1, 'UT1': 2, 'TT': 3, 'TAI': 4)
+    ! (11) target absolute magnitude H
+    ! (12) target slope parameter G
+    REAL(8),DIMENSION(in_norb,12), INTENT(in)           :: in_orbits ! (1:norb,1:12)
+    ! in_nepoch: number of output epochs
+    INTEGER, INTENT(in)                                 :: in_nepoch
+    ! in_epoch: epoch and timescale of output orbits:
+    ! (1) modified Julian date
+    ! (2) timescale type ('UTC': 1, 'UT1': 2, 'TT': 3, 'TAI': 4)
+    REAL(8), DIMENSION(in_nepoch,2), INTENT(in)                   :: in_epoch
+    ! in_model: "2"=2-body dynamical model, "N"=n-body dynamical model
+    CHARACTER(len=1), INTENT(in)                        :: in_dynmodel
+    ! in_integration_step: step size for the n-body integrator (default: 5 days)
+    REAL(8), INTENT(in), OPTIONAL :: in_integration_step
+    ! out_orbits: output flattened orbits, 12 columns per target:
+    ! (1) object id (integer value)
+    ! (2-7) orbital elements:
+    !   * (q, e, i, longnode, argper, perihelion epoch in mjd) for comet format
+    !   * (a, e, i, longnode, argper, mean anomaly) for keplerian format
+    !   * (x, y, z, dx, dy, dz) for cartesian format
+    ! (8) orbital elements type ('CART': 1, 'COM': 2, 'KEP': 3, 'DEL': 4, 'EQX': 5)
+    ! (9) epoch in mjd
+    ! (10) time scale type ('UTC': 1, 'UT1': 2, 'TT': 3, 'TAI': 4)
+    ! (11) target absolute magnitude H
+    ! (12) target slope parameter G
+    REAL(8),DIMENSION(in_nepoch,in_norb,12), INTENT(out)          :: out_orbits ! (1:norb,1:12)
+    ! error_code: output error code
+    INTEGER, INTENT(out)                                :: error_code
+
+    TYPE (Orbit), DIMENSION(in_norb) :: orb_arr
+    TYPE (Time) :: t
+    CHARACTER(len=INTEGRATOR_LEN) :: integrator
+    CHARACTER(len=6) :: dyn_model
+    INTEGER :: i, j
+    LOGICAL, DIMENSION(10) :: perturbers
+    REAL(8) :: integration_step
+    REAL(8), DIMENSION(6) :: elements
+
+    ! Init
+    errstr = ""
+    error_code = 0
+    IF (in_dynmodel .EQ. "2") THEN
+       dyn_model = "2-body"
+    END IF
+    IF (in_dynmodel .EQ. "N") THEN
+       dyn_model = "n-body"
+    END IF
+    integrator = "bulirsch-stoer"
+    perturbers = .TRUE.
+
+    ! f2py bug, passes 0 for OPTIONALs (https://github.com/numpy/numpy/issues/4013)
+    IF (PRESENT(in_integration_step) .AND. in_integration_step > 0.0_8) THEN
+       integration_step = in_integration_step
+    ELSE
+       integration_step = 5.0_8
+    END IF
+
+    ! Create orbit instances
+    DO i=1,SIZE(in_orbits,dim=1)
+       ! Get the element type from the input flattened orbit.
+       IF(NINT(in_orbits(i,8)) < 0 .OR.                                       &
+            NINT(in_orbits(i,8)) > SIZE(element_types)) THEN
+          ! Error: unsupported orbital elements.
+          error_code = 58
+          RETURN
+       END IF
+
+       ! Create a Time instance.
+       CALL NEW(t, in_orbits(i,9), timescales(NINT(in_orbits(i,10))))
+       IF(error) THEN
+          ! Error in creating a Time instance.
+          error_code = 57
+          RETURN
+       END IF
+
+       ! Get each flattened orbit and create an Orbit instance.
+       elements(1:6) = in_orbits(i,2:7)
+       CALL NEW(orb_arr(i), &
+            elements(1:6), &
+            element_types(NINT(in_orbits(i,8))), &
+            "ecliptic", &
+            copy(t))
+       CALL NULLIFY(t)
+       CALL setParameters(orb_arr(i), &
+            dyn_model=dyn_model, &
+            perturbers=perturbers, &
+            integrator=integrator, &
+            integration_step=integration_step)
+       IF (error) THEN
+          error_code = 37
+          RETURN
+       END IF
+    END DO
+
+    ! Loop over times to propagate to
+    DO j=1,SIZE(in_epoch,dim=1)
+       ! Create a Time instance based on the requested output epoch
+       CALL NEW(t, in_epoch(j,1), timescales(NINT(in_epoch(j,2))))
+       IF (error) THEN
+          error_code = 58
+          RETURN
+       END IF
+
+       ! Propagate
+       CALL propagate(orb_arr, t)
+       IF (error) THEN
+          ! Error in getEphemerides()
+          error_code = 40
+          RETURN
+       END IF
+       CALL NULLIFY(t)
+
+       ! Copy propagated orbital elements to the output array
+       DO i=1,SIZE(in_orbits, dim=1)
+          out_orbits(j, i,2:7) = getElements(orb_arr(i), element_types(NINT(in_orbits(i,8))), &
+            "ecliptic")
+          IF (error) THEN
+             ! Error in transformation
+             error_code = 58
+             RETURN
+          END IF
+
+          ! convert angles to degrees
+          IF (element_types(NINT(in_orbits(i,8))) .EQ. "keplerian" .OR.  &
+              element_types(NINT(in_orbits(i,8))) .EQ. "cometary") THEN
+             out_orbits(j, i,4) = out_orbits(j, i,4)/rad_deg
+             out_orbits(j, i,5) = out_orbits(j, i,5)/rad_deg
+             out_orbits(j, i,6) = out_orbits(j, i,6)/rad_deg
+             out_orbits(j, i,7) = out_orbits(j, i,7)/rad_deg
+          END IF
+       END DO
+       out_orbits(j, :,1) = in_orbits(:,1)                                       ! object ID
+       out_orbits(j, :,8) = in_orbits(:,8)                                       ! element type
+       out_orbits(j, :,9:10) = SPREAD(in_epoch(j,:), 1, SIZE(in_orbits, dim=1))  ! epoch+timescale
+       out_orbits(j, :,11:12) = in_orbits(:,11:12)                               ! H,G
+    END DO
+
+  END SUBROUTINE oorb_propagate_multiple
+
+
+  SUBROUTINE oorb_get_observer_coordinates( &
+       in_nepoch,            &
+       in_epoch,             &
+       in_obscode,           &
+       in_frame,             &
+       out_xv,               &
+       error_code)
+
+    ! Input/Output variables.
+    ! in_nepoch: number of output epochs
+    INTEGER, INTENT(in)                                 :: in_nepoch
+    ! in_epoch: epoch and timescale of output orbits:
+    ! (1) modified Julian date
+    ! (2) timescale type ('UTC': 1, 'UT1': 2, 'TT': 3, 'TAI': 4)
+    REAL(8), DIMENSION(in_nepoch,2), INTENT(in)                   :: in_epoch
+    ! in_obscode: observatory code as defined by the Minor Planet Center
+    CHARACTER(len=*), INTENT(in)                        :: in_obscode
+    ! in_frame: output frame -- must be "equatorial" or "ecliptic" (default: "equatorial")
+    CHARACTER(len=*), INTENT(in), OPTIONAL               :: in_frame
+    ! out_xv: output heliocentric equatorial cartesian positions and velocities for the observer
+    ! (1) heliocentric ecliptic cartesian x coordinate for the observatory (au)                
+    ! (2) heliocentric ecliptic cartesian y coordinate for the observatory (au)                
+    ! (3) heliocentric ecliptic cartesian z coordinate for the observatory (au)
+    ! (4) heliocentric ecliptic cartesian vx velocity for the observatory (au/day)
+    ! (5) heliocentric ecliptic cartesian vy velocity for the observatory (au/day)
+    ! (6) heliocentric ecliptic cartesian vz velocity for the observatory (au/day)
+    REAL(8), DIMENSION(in_nepoch,6), INTENT(out) :: out_xv ! (1:nepoch,1:6)
+    ! error_code: output error code
+    INTEGER, INTENT(out)                                :: error_code
+
+    ! Internal variables.  
+    TYPE (CartesianCoordinates) :: observer
+    INTEGER :: i
+    TYPE (Time) :: t
+    LOGICAL :: to_equ
+
+    SELECT CASE (in_frame)
+       CASE ("")
+          to_equ = .TRUE.
+       CASE ("equatorial")
+          to_equ = .TRUE.
+       CASE ("ecliptic")
+          to_equ = .FALSE.
+       CASE DEFAULT
+          error_code = 59
+          RETURN
+    END SELECT
+
+    DO i=1,in_nepoch
+       ! Create a Time instance based on the requested output epoch
+       CALL NEW(t, in_epoch(i,1), timescales(NINT(in_epoch(i,2))))
+       IF (error) THEN
+          error_code = 58
+          RETURN
+       END IF
+
+       ! Compute heliocentric observatory coordinates
+       observer = getObservatoryCCoord(obsies, in_obscode, t)
+       IF (error) THEN
+          ! Error in getObservatoryCCoord()
+          error_code = 36
+          RETURN
+       END IF
+       IF (to_equ) THEN
+          CALL rotateToEquatorial(observer)
+       ELSE
+          CALL rotateToEcliptic(observer)
+       END IF
+
+       ! Copy to output
+       out_xv(i, 1:6) = getCoordinates(observer)
+
+       CALL NULLIFY(t)
+    END DO
+  END SUBROUTINE oorb_get_observer_coordinates
 
   
   SUBROUTINE oorb_ephemeris_full(in_norb, &
